@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 
@@ -11,10 +10,21 @@ namespace GraphQLAuth.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class DefaultController : ControllerBase
+    public class TokenController : ControllerBase
     {
-        [HttpGet("gettoken")]
-        public IActionResult GetJWTToken()
+        [HttpGet("app1")]
+        public IActionResult GetJWTTokenApp1()
+        {
+            return Ok(GetToken("SampleApp1"));
+        }
+
+        [HttpGet("app2")]
+        public IActionResult GetJWTTokenApp2()
+        {
+            return Ok(GetToken("SampleApp2"));
+        }
+
+        private string GetToken(string audience)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("zXyi0iWkUcJ2XlCdZ5NscHJBwioXQl"));
 
@@ -22,21 +32,21 @@ namespace GraphQLAuth.Api.Controllers
             {
                 new Claim(JwtRegisteredClaimNames.Sub, "dominik.ther@fake.com"),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim("app", "1"),
-                new Claim("app", "2"),
-                //new Claim("age", "22")
-        };
+                new Claim("reg", "1"),
+                new Claim("reg", "2"),
+                new Claim("age", "22")
+            };
 
             var token = new JwtSecurityToken(
                 "Dominik",
-                "SampleApp",
+                audience,
                 claims,
                 DateTime.UtcNow,
                 DateTime.UtcNow.AddDays(300),
                 new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
             );
 
-            return Ok(new JwtSecurityTokenHandler().WriteToken(token));
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
         //[Authorize]

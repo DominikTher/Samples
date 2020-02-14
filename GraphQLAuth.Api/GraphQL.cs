@@ -12,14 +12,14 @@ namespace GraphQLAuth.Api
 
     public class Query
     {
-        [GraphQLAuthorize(Policy = "App1")]
+        [GraphQLAuthorize(Policy = "Reg1")]
         [GraphQLAuthorize(Policy = "MinimumAge")]
         public User Viewer()
         {
             return new User { Id = Guid.NewGuid().ToString(), Name = "Quinn" };
         }
 
-        [GraphQLAuthorize(Policy = "App2")]
+        [GraphQLAuthorize(Policy = "Reg2")]
         public List<User> Users()
         {
             return new List<User> { new User { Id = Guid.NewGuid().ToString(), Name = "Quinn" } };

@@ -1,13 +1,12 @@
-using GraphQL.Authorization;
-using GraphQL.Language.AST;
 using GraphQL.Server;
 using GraphQL.Types;
 using GraphQL.Validation;
-using Microsoft.AspNetCore.Authentication;
+using GraphQLAuth.Api.Middleware;
+using GraphQLAuth.Api.Requirements;
+using GraphQLAuth.Api.Validations;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -15,7 +14,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace GraphQLAuth.Api
 {
@@ -53,16 +51,61 @@ namespace GraphQLAuth.Api
             services.AddGraphQLAuth((_, s) =>
             {
                 _.AddPolicy("MinimumAge", p => p.AddRequirement(new MinimumAgeRequirement(200)));
-                _.AddPolicy("App1", p => p.RequireClaim("app", "1"));
-                _.AddPolicy("App2", p => p.RequireClaim("app", "2"));
+                _.AddPolicy("Reg1", p => p.RequireClaim("reg", "1"));
+                _.AddPolicy("Reg2", p => p.RequireClaim("reg", "2"));
             });
 
             services
                 .AddGraphQL(options =>
                 {
-                    options.ExposeExceptions = true;
+                    options.ExposeExceptions = false;
                 })
                 .AddUserContextBuilder(context => new GraphQLUserContext { User = context.User });
+
+            services
+                .AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                })
+                // TODO: Put some default schema and check what's happened
+                .AddJwtBearer("sampleapp1", options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+
+                        ValidateIssuer = true,
+                        ValidIssuer = "Dominik",
+                        ValidateAudience = true,
+                        ValidAudience = "SampleApp1",
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("zXyi0iWkUcJ2XlCdZ5NscHJBwioXQl")),
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.FromDays(300)
+                    };
+                })
+                .AddJwtBearer("sampleapp2", options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+
+                        ValidateIssuer = true,
+                        ValidIssuer = "Dominik",
+                        ValidateAudience = true,
+                        ValidAudience = "SampleApp2",
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("zXyi0iWkUcJ2XlCdZ5NscHJBwioXQl")),
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.FromDays(300)
+                    };
+                });
+
+            // Add another IValidationRule, there will be always one because AddGraphQLAuth
+            services.AddTransient<IValidationRule, RequiresAuthenticationValidationRule>();
+            services.AddTransient<IValidationRule, RequiresOtherValidationRule>();
+
+            // Just for default
+            services.AddControllers();
 
             // Kestrel workaround
             services.Configure<KestrelServerOptions>(options =>
@@ -75,49 +118,6 @@ namespace GraphQLAuth.Api
             {
                 options.AllowSynchronousIO = true;
             });
-
-            services
-                .AddAuthentication(options =>
-                {
-                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                })
-                .AddJwtBearer("SampleApp1", options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-
-                        ValidateIssuer = true,
-                        ValidIssuer = "Dominik",
-                        ValidateAudience = true,
-                        ValidAudience = "SampleApp",
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("zXyi0iWkUcJ2XlCdZ5NscHJBwioXQl")),
-                        ValidateLifetime = true,
-                        ClockSkew = TimeSpan.FromDays(300)
-                    };
-                })
-                .AddJwtBearer("SampleApp2", options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-
-                        ValidateIssuer = true,
-                        ValidIssuer = "Dominik",
-                        ValidateAudience = true,
-                        ValidAudience = "SampleApp",
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("zXyi0iWkUcJ2XlCdZ5NscHJBwioXQl")),
-                        ValidateLifetime = true,
-                        ClockSkew = TimeSpan.FromDays(300)
-                    };
-                });
-
-            // Add another IValidationRule, there will be always one because AddGraphQLAuth
-            services.AddTransient<IValidationRule, RequiresAuthenticationValidationRule>();
-            services.AddTransient<IValidationRule, RequiresOtherValidationRule>();
-
-            services.AddControllers();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -130,102 +130,19 @@ namespace GraphQLAuth.Api
 
             app.UseRouting();
 
-            app.UseCustomMiddleware();
+            // Order matter !!!
+            app.UseAuthenticationMiddleware();
             app.UseAuthentication();
             //app.UseAuthorization();
 
             var validationRules = app.ApplicationServices.GetServices<IValidationRule>();
 
-            app.UseGraphQL<ISchema>("/graphql");
+            app.UseGraphQL<ISchema>("/sampleapp1");
+            app.UseGraphQL<ISchema>("/sampleapp2");
 
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
-            });
-        }
-    }
-
-    public static class CustomMiddlewareExtension
-    {
-        public static IApplicationBuilder UseCustomMiddleware(this IApplicationBuilder builder)
-        {
-            return builder.UseMiddleware<CustomMiddleware>();
-        }
-    }
-
-    public class CustomMiddleware
-    {
-        private readonly RequestDelegate _next;
-
-        public CustomMiddleware(RequestDelegate next)
-        {
-            _next = next;
-        }
-
-        public async Task Invoke(HttpContext httpContext)
-        {
-            var service = httpContext.RequestServices.GetRequiredService<IAuthenticationHandlerProvider>();
-            var handler = await service.GetHandlerAsync(httpContext, "SampleApp1");
-
-            var authenticateResult = await handler.AuthenticateAsync();
-
-            if (authenticateResult.Succeeded)
-                await _next(httpContext);
-            else
-            {
-                httpContext.Response.StatusCode = 401;
-            }
-        }
-    }
-
-    public class MinimumAgeRequirement : IAuthorizationRequirement
-    {
-        public int MinimumAge { get; }
-
-        public MinimumAgeRequirement(int minimumAge)
-        {
-            MinimumAge = minimumAge;
-        }
-
-        public Task Authorize(AuthorizationContext context)
-        {
-            var minimumAge = int.Parse(context.User.FindFirst(c => c.Type == "age")?.Value ?? "0");
-            if (minimumAge < 21)
-                context.ReportError("MinimumAge");
-
-            return Task.CompletedTask;
-        }
-    }
-
-    public class RequiresOtherValidationRule : IValidationRule
-    {
-        public INodeVisitor Validate(ValidationContext context)
-        {
-            var userContext = context.UserContext as GraphQLUserContext;
-            var authenticated = userContext.User.Identity.IsAuthenticated;
-
-            return new EnterLeaveListener(_ =>
-            {
-                // Just example
-                _.Match<Field>(op =>
-                {
-                    // Some logic
-                });
-            });
-        }
-    }
-
-    public class RequiresAuthenticationValidationRule : IValidationRule
-    {
-        public INodeVisitor Validate(ValidationContext context)
-        {
-            var userContext = context.UserContext as GraphQLUserContext;
-            var authenticated = userContext.User.Identity.IsAuthenticated;
-
-            return new EnterLeaveListener(_ =>
-            {
-                if (authenticated == false)
-                    context.ReportError(new ValidationError(context.OriginalQuery, "401", "Unauthorized"));
             });
         }
     }
