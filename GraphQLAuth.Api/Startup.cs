@@ -1,19 +1,16 @@
+using GraphQL;
 using GraphQL.Server;
 using GraphQL.Types;
 using GraphQL.Validation;
+using GraphQLAuth.Api.GraphQL;
 using GraphQLAuth.Api.Middleware;
 using GraphQLAuth.Api.Requirements;
 using GraphQLAuth.Api.Validations;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Text;
 
 namespace GraphQLAuth.Api
 {
@@ -23,32 +20,12 @@ namespace GraphQLAuth.Api
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
-            // TODO: AddGraphTypes and see differencies
-            services.TryAddSingleton(s =>
-            {
-                var definitions = @"
-                  type User {
-                    id: ID
-                    name: String
-                  }
-                  type Query {
-                    viewer: User
-                    users: [User]
-                  }
-                ";
-                var schema = Schema.For(
-                    definitions,
-                    _ =>
-                    {
-                        _.Types.Include<Query>();
-                    });
+            services.AddScoped<IDependencyResolver>(s => new FuncDependencyResolver(s.GetRequiredService));
 
-                //schema.FindType("User").AuthorizeWith("AdminPolicy");
+            //services.AddSchemaFisrt();
+            services.AddScoped<ISchema, DemoSchema>();
 
-                return schema;
-            });
-
-            // extension method defined in this project
+            // Extension used in sample from GraphQL Authorization NuGet
             services.AddGraphQLAuth((_, s) =>
             {
                 _.AddPolicy("MinimumAge", p => p.AddRequirement(new MinimumAgeRequirement(200)));
@@ -56,56 +33,23 @@ namespace GraphQLAuth.Api
                 _.AddPolicy("Reg2", p => p.RequireClaim("reg", "2"));
             });
 
+            // GraphQL
             services
                 .AddGraphQL(options =>
                 {
                     options.ExposeExceptions = false;
                 })
+                .AddGraphTypes(ServiceLifetime.Scoped)
                 .AddUserContextBuilder(context => new GraphQLUserContext { User = context.User });
 
-            services
-                .AddAuthentication(options =>
-                {
-                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                })
-                // TODO: Put some default schema and check what's happened
-                .AddJwtBearer("sampleapp1", options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-
-                        ValidateIssuer = true,
-                        ValidIssuer = "Dominik",
-                        ValidateAudience = true,
-                        ValidAudience = "SampleApp1",
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("zXyi0iWkUcJ2XlCdZ5NscHJBwioXQl")),
-                        ValidateLifetime = true,
-                        ClockSkew = TimeSpan.FromDays(300)
-                    };
-                })
-                .AddJwtBearer("sampleapp2", options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-
-                        ValidateIssuer = true,
-                        ValidIssuer = "Dominik",
-                        ValidateAudience = true,
-                        ValidAudience = "SampleApp2",
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("zXyi0iWkUcJ2XlCdZ5NscHJBwioXQl")),
-                        ValidateLifetime = true,
-                        ClockSkew = TimeSpan.FromDays(300)
-                    };
-                });
+            // Custom extension
+            services.AddJwtAuth();
 
             // Add another IValidationRule, there will be always one because AddGraphQLAuth
             services.AddTransient<IValidationRule, RequiresAuthenticationValidationRule>();
             services.AddTransient<IValidationRule, RequiresOtherValidationRule>();
 
-            // Just for default
+            // Just for TokenController
             services.AddControllers();
 
             // Kestrel workaround
@@ -134,13 +78,15 @@ namespace GraphQLAuth.Api
             // Order matter !!!
             app.UseAuthenticationMiddleware();
             app.UseAuthentication();
-            //app.UseAuthorization();
+            app.UseAuthorization();
 
+            // Just for testing purposes
             var validationRules = app.ApplicationServices.GetServices<IValidationRule>();
 
             app.UseGraphQL<ISchema>("/sampleapp1");
             app.UseGraphQL<ISchema>("/sampleapp2");
 
+            // Just for TokenController
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();

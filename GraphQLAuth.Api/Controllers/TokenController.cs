@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 
@@ -10,6 +11,7 @@ namespace GraphQLAuth.Api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(AuthenticationSchemes = "api")]
     public class TokenController : ControllerBase
     {
         [HttpGet("app1")]
@@ -22,6 +24,13 @@ namespace GraphQLAuth.Api.Controllers
         public IActionResult GetJWTTokenApp2()
         {
             return Ok(GetToken("SampleApp2"));
+        }
+
+        [AllowAnonymous]
+        [HttpGet("default")]
+        public IActionResult GetJWTTokenDefault()
+        {
+            return Ok(GetToken("api"));
         }
 
         private string GetToken(string audience)
