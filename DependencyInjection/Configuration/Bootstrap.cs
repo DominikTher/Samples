@@ -28,6 +28,9 @@ namespace DependencyInjection.Configuration
             var concreteServiceDescriptor = new ServiceDescriptor(typeof(IConcreteService), typeof(ConcreteService), ServiceLifetime.Transient);
             serviceCollection.Add(concreteServiceDescriptor);
 
+            // Multiple constructor
+            serviceCollection.AddSingleton<Injections>();
+
             serviceCollection.Configure<ConsoleApplicationOptions>(configuration.GetSection("ConsoleApplicationOptions"));
             serviceCollection.AddSingleton(service => service.GetRequiredService<IOptions<ConsoleApplicationOptions>>().Value); // Simplify registration of IOptions<>
 

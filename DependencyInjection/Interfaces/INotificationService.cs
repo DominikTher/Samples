@@ -1,6 +1,6 @@
 ﻿namespace DependencyInjection.Interfaces
 {
-    interface INotificationService
+    public interface INotificationService
     {
         public void NotifyToConsole();
     }

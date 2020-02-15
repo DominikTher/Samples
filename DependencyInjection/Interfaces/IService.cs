@@ -1,6 +1,6 @@
 ﻿namespace DependencyInjection.Interfaces
 {
-    interface IService
+    public interface IService
     {
         void PrintServiceNameToConsole();
     }

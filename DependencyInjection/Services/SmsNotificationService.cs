@@ -3,7 +3,7 @@ using System;
 
 namespace DependencyInjection.Services
 {
-    class SmsNotificationService : INotificationService
+    public class SmsNotificationService : INotificationService
     {
         public void NotifyToConsole()
         {

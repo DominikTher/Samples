@@ -1,5 +1,6 @@
 ﻿using DependencyInjection.Configuration;
 using DependencyInjection.Interfaces;
+using DependencyInjection.Services;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 
@@ -26,6 +27,8 @@ namespace DependencyInjection
             serviceProvider.GetRequiredService<IConcreteService>().PrintServiceNameToConsole();
             serviceProvider.GetRequiredService<IConcreteService>().PrintNamesOfServicesToConsole();
             serviceProvider.GetRequiredService<INotificationService>().NotifyToConsole();
+
+            var injections = serviceProvider.GetRequiredService<Injections>();
         }
     }
 }
